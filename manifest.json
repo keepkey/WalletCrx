@@ -35,11 +35,26 @@
         ]}
     ],
     "sockets": {
-        "tcp":  {"connect": "*:50001"}
+        "tcp":  {"connect": [ "electrum.jdubya.info:50002",
+                              "vps.hsmiths.com:50002",
+                              "ecdsa.net:110",
+                              "eco-electrum.ddns.net:50002",
+                              "electrum.be:50002",
+                              "electrum.drollette.com:50002",
+                              "electrum.hsmiths.com:50002",
+                              "electrum.no-ip.org:50002",
+                              "electrum.ofloo.net:50002",
+                              "electrum.petrkr.net:50002",
+                              "electrum.thwg.org:50002",
+                              "electrum0.electricnewyear.net:50002",
+                              "erbium1.sytes.net:50002",
+                              "kirsche.emzy.de:50002",
+                              "us.electrum.be:50002"
+                            ]}
     },
     "icons": { "16": "icon16.png",
                "48": "icon48.png",
               "128": "icon128.png" },
     "name": "GreenAddress",
-    "version": "0.0.74"
+    "version": "0.0.75"
 }

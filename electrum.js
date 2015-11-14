@@ -100,6 +100,7 @@ Electrum.SSL_SERVERS = [
   ["us.electrum.be", 50002]
 ];
 
+/*
 // addr, port
 Electrum.SERVERS = [
   ["electrum.jdubya.info", 50001],
@@ -114,6 +115,7 @@ Electrum.SERVERS = [
   ["kirsche.emzy.de", 50001],
   ["us.electrum.be", 50001]
 ];
+*/
 
 Electrum.prototype.checkConnectionsAvailable = function() {
   var that = this;
@@ -122,23 +124,30 @@ Electrum.prototype.checkConnectionsAvailable = function() {
       return new Promise(function(resolve, reject) {
         var socketId, resolved;
 
-        var onConnectComplete = function (result) {
-          if (resolved) return;
-          resolved = true;
-          if (result != 0) {
-            reject();
-          } else {
-            chrome.sockets.tcp.close(socketId);
-            that.currentEserver = eserver;
-            resolve();
-          }
+        var onConnectComplete = function (insecureResult) {
+          chrome.sockets.tcp.secure(socketId, function(result) {
+                  console.log(result + " " + eserver);
+
+                  if (resolved) return;
+
+                  resolved = true;
+                  if (result != 0) {
+                    reject();
+                  } else {
+                    chrome.sockets.tcp.close(socketId);
+                    that.currentEserver = eserver;
+                    resolve();
+                  }
+          });
         }
 
         var onSocketCreate = function(socketInfo) {
           socketId = socketInfo.socketId;
-          chrome.sockets.tcp.connect(socketInfo.socketId,
-                                     eserver[0], eserver[1],
-                                     onConnectComplete);
+          chrome.sockets.tcp.setPaused(socketInfo.socketId, true, function() {
+                  chrome.sockets.tcp.connect(socketInfo.socketId,
+                                             eserver[0], eserver[1],
+                                             onConnectComplete);
+          });
         };
 
         chrome.sockets.tcp.create({
@@ -160,7 +169,7 @@ Electrum.prototype.checkConnectionsAvailable = function() {
         for(var j, x, i = o.length; i; j = Math.floor(Math.random() * i), x = o[--i], o[i] = o[j], o[j] = x);
         return o;
     };
-    var servers = shuffle(Electrum.SERVERS.slice(0));
+    var servers = shuffle(Electrum.SSL_SERVERS.slice(0));
 
     var d = Promise.reject();
     for (var i = 0; i < servers.length; i++) {
@@ -275,13 +284,14 @@ Electrum.prototype.onSocketReceiveError = function(receiveErrorInfo) {
 
 Electrum.prototype.onSendComplete = function(sendInfo) {
   logInfo(sendInfo);
+  chrome.sockets.tcp.setPaused(this.socketId, false);
 };
 
 Electrum.prototype.pickRandomServer = function() {
   var newEserver;
   do {
     newEserver =
-      Electrum.SERVERS[Math.floor(Math.random() * Electrum.SERVERS.length)];
+      Electrum.SSL_SERVERS[Math.floor(Math.random() * Electrum.SSL_SERVERS.length)];
   } while (newEserver== this.currentEserver);
   this.currentEserver = newEserver;
 };
@@ -291,23 +301,27 @@ Electrum.prototype.connectToServer = function() {
   return new Promise(function(resolve, reject) {
     var retryDelay = 100;
 
-    function onConnectComplete(result) {
-      if (result != 0) {
-        this.connectionStateDescription = ("Waiting to reconnect (" +
-                                           result + ")");
-        retryDelay *= 2;
-        if (retryDelay > 3200) {
-          retryDelay = 3200;
-        }
-        window.setTimeout(tryConnection.bind(this), retryDelay);
-      } else {
-        this.connectionStateDescription = ("Connected to " +
-                                           this.currentEserver[0] + ":" +
-                                           this.currentEserver[1]);
-        this.isSocketConnected = true;
-        this.flushOutgoingQueue();
-        resolve();
-      }
+    var that = this;
+    function onConnectComplete(insecureResult) {
+      chrome.sockets.tcp.secure(that.socketId, function(result) {
+
+              if (result != 0) {
+                this.connectionStateDescription = ("Waiting to reconnect (" +
+                                                   result + ")");
+                retryDelay *= 2;
+                if (retryDelay > 3200) {
+                  retryDelay = 3200;
+                }
+                window.setTimeout(tryConnection.bind(this), retryDelay);
+              } else {
+                this.connectionStateDescription = ("Connected to " +
+                                                   this.currentEserver[0] + ":" +
+                                                   this.currentEserver[1]);
+                this.isSocketConnected = true;
+                this.flushOutgoingQueue();
+                resolve();
+              }
+      });
     }
 
     function tryConnection() {
@@ -315,10 +329,13 @@ Electrum.prototype.connectToServer = function() {
       this.connectionStateDescription = ("Attempting connection to " +
                                          this.currentEserver[0] + ":" +
                                          this.currentEserver[1]);
-      chrome.sockets.tcp.connect(this.socketId,
-                                 this.currentEserver[0],
-                                 this.currentEserver[1],
-                                 onConnectComplete.bind(this));
+      var that = this;
+      chrome.sockets.tcp.setPaused(socketInfo.socketId, true, function() {
+              chrome.sockets.tcp.connect(that.socketId,
+                                         that.currentEserver[0],
+                                         that.currentEserver[1],
+                                         onConnectComplete.bind(that));
+      });
     }
 
     function onSocketCreate(socketInfo) {
